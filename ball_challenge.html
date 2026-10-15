@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ball Challenge</title>
+<style>
+:root{color-scheme:dark;--bg:#080d1b;--panel:#111a30;--cyan:#53e5ff;--pink:#ff4e91;--gold:#ffd166}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#17264a 0%,var(--bg) 62%);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#f4f7ff;display:flex;align-items:center;justify-content:center;padding:16px}
+.app{width:min(100%,460px);text-align:center}
+h1{font-size:clamp(30px,8vw,44px);margin:0 0 4px;letter-spacing:1px}
+h1 span{color:var(--cyan)}
+.sub{color:#aab7d4;margin:0 0 14px;font-size:14px}
+.stats{display:flex;gap:10px;margin:12px 0}
+.stat{flex:1;background:#111a30;border:1px solid #293756;border-radius:14px;padding:10px}
+.stat small{display:block;color:#9eaccb;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.stat strong{font-size:22px}
+canvas{display:block;width:100%;aspect-ratio:360/520;border:1px solid #334467;border-radius:20px;background:#0a1226;touch-action:manipulation;box-shadow:0 16px 45px #0007}
+.controls{display:flex;gap:10px;margin-top:12px}
+button{border:0;border-radius:13px;padding:13px 16px;font:700 15px system-ui;cursor:pointer}
+#start{flex:1;color:#06101b;background:linear-gradient(100deg,var(--cyan),#8bffdf)}
+#sound{background:#202d4a;color:#f4f7ff}
+.help{font-size:12px;color:#9eaccb;line-height:1.5;margin:12px 4px}
+.overlay{position:fixed;inset:0;background:#050917bb;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{max-width:340px;width:100%;background:#111a30;border:1px solid #35466d;border-radius:22px;padding:24px;box-shadow:0 20px 70px #0009}
+.modal h2{margin:0 0 8px;font-size:27px}.modal p{color:#c0cbe2;line-height:1.5;font-size:14px}
+.modal button{width:100%;margin-top:8px;background:var(--cyan);color:#06101b}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main class="app">
+  <h1><span>BALL</span> CHALLENGE</h1>
+  <p class="sub">Un tap. Des réflexes. Un nouveau record.</p>
+  <div class="stats">
+    <div class="stat"><small>Score</small><strong id="score">0</strong></div>
+    <div class="stat"><small>Record</small><strong id="best">0</strong></div>
+    <div class="stat"><small>Vitesse</small><strong id="level">1</strong></div>
+  </div>
+  <canvas id="game" width="360" height="520" aria-label="Jeu Ball Challenge"></canvas>
+  <div class="controls">
+    <button id="start">▶ Commencer</button>
+    <button id="sound" aria-label="Activer ou désactiver le son">🔊 Son</button>
+  </div>
+  <p class="help">Touchez l'écran de jeu pour faire rebondir la balle. Évitez les obstacles roses et collectez les étoiles dorées. Le jeu est gratuit ; les pièces sont virtuelles et n'ont aucune valeur monétaire.</p>
+</main>
+<div id="overlay" class="overlay">
+  <div class="modal">
+    <h2>Prêt à relever le défi ?</h2>
+    <p>Fais rebondir la balle bleue, passe entre les obstacles roses et attrape les étoiles pour gagner des points.</p>
+    <p><b>Commande :</b> touche l'écran pour donner une impulsion vers le haut.</p>
+    <button id="play">Jouer maintenant</button>
+  </div>
+</div>
+<script>
+(() => {
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+const scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),levelEl=document.getElementById('level');
+const overlay=document.getElementById('overlay'),startBtn=document.getElementById('start'),soundBtn=document.getElementById('sound');
+let running=false,over=false,sound=true,score=0,best=0,frame=0,ball,obstacles,stars,particles;
+try{best=Number(localStorage.getItem('ballChallengeBest')||0)}catch(e){}
+bestEl.textContent=best;
+const W=c.width,H=c.height;
+function reset(){score=0;frame=0;ball={x:85,y:H*.5,r:11,vy:0};obstacles=[];stars=[];particles=[];over=false;scoreEl.textContent='0';levelEl.textContent='1'}
+function start(){reset();running=true;overlay.classList.add('hidden');startBtn.textContent='↻ Recommencer';}
+function beep(freq=500){if(!sound)return;try{const A=window.AudioContext||window.webkitAudioContext;const a=new A(),o=a.createOscillator(),g=a.createGain();o.frequency.value=freq;g.gain.value=.035;o.connect(g);g.connect(a.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.09);o.stop(a.currentTime+.1);o.onended=()=>a.close()}catch(e){}}
+function jump(){if(!running){if(over)start();else return}ball.vy=-5.1;beep(560);for(let i=0;i<5;i++)particles.push({x:ball.x,y:ball.y,vx:(Math.random()-.5)*3,vy:Math.random()*2,life:18})}
+function end(){running=false;over=true;beep(150);if(score>best){best=score;bestEl.textContent=best;try{localStorage.setItem('ballChallengeBest',best)}catch(e){}}startBtn.textContent='↻ Rejouer';overlay.classList.remove('hidden');overlay.querySelector('h2').textContent='Partie terminée !';overlay.querySelector('p').textContent=`Ton score : ${score}. ${score>0?'Bien joué !':'Réessaie pour battre ton record.'}`;overlay.querySelectorAll('p')[1].textContent='Appuie sur « Rejouer » pour tenter une nouvelle partie.';document.getElementById('play').textContent='Rejouer'}
+function spawn(){const gap=Math.max(135,174-Math.floor(score/5)*5),top=70+Math.random()*(H-gap-140);obstacles.push({x:W+25,w:48,top,gap,passed:false});if(Math.random()>.25)stars.push({x:W+75,y:top+gap/2+(Math.random()-.5)*gap*.35,r:8,taken:false})}
+function circleRect(b,r){const x=Math.max(r.x,Math.min(b.x,r.x+r.w)),y=Math.max(r.y,Math.min(b.y,r.y+r.h));return (b.x-x)**2+(b.y-y)**2<b.r**2}
+function drawBg(){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#182748';ctx.lineWidth=1;for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}for(let i=0;i<24;i++){let x=(i*71+frame*.18)%W,y=(i*97)%H;ctx.fillStyle='#8ea9df66';ctx.fillRect(x,y,2,2)}}
+function rounded(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function draw(){drawBg();
+  obstacles.forEach(o=>{ctx.shadowColor='#ff4e91';ctx.shadowBlur=16;const grad=ctx.createLinearGradient(o.x,0,o.x+o.w,0);grad.addColorStop(0,'#ff397e');grad.addColorStop(1,'#ff83b1');ctx.fillStyle=grad;rounded(o.x,0,o.w,o.top,9);rounded(o.x,o.top+o.gap,o.w,H-(o.top+o.gap),9);ctx.shadowBlur=0;ctx.fillStyle='#ffffff22';ctx.fillRect(o.x+7,0,4,o.top);ctx.fillRect(o.x+7,o.top+o.gap,4,H-o.top-o.gap)});
+  stars.forEach(s=>{if(s.taken)return;ctx.save();ctx.translate(s.x,s.y);ctx.rotate(frame*.035);ctx.shadowColor='#ffd166';ctx.shadowBlur=16;ctx.fillStyle='#ffd166';ctx.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?s.r*.45:s.r;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r)}ctx.closePath();ctx.fill();ctx.restore()});
+  particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life/18);ctx.fillStyle='#53e5ff';ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1});
+  if(ball){ctx.shadowColor='#53e5ff';ctx.shadowBlur=22;const g=ctx.createRadialGradient(ball.x-4,ball.y-5,1,ball.x,ball.y,ball.r+3);g.addColorStop(0,'#ffffff');g.addColorStop(.4,'#9cf5ff');g.addColorStop(1,'#29a9ff');ctx.fillStyle=g;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
+  if(!running&&!over){ctx.fillStyle='#d9e7ff';ctx.textAlign='center';ctx.font='bold 17px system-ui';ctx.fillText('Touche pour rebondir',W/2,H*.78);ctx.font='13px system-ui';ctx.fillStyle='#8fa4ce';ctx.fillText('Évite les obstacles roses',W/2,H*.78+24)}
+}
+function tick(){if(running){frame++;ball.vy+=.24;ball.y+=ball.vy;const speed=2.4+Math.min(2.8,score*.035);if(frame%Math.max(48,82-Math.floor(score/4)*2)===0)spawn();obstacles.forEach(o=>{o.x-=speed;if(!o.passed&&o.x+o.w<ball.x){o.passed=true;score++;scoreEl.textContent=score;levelEl.textContent=1+Math.floor(score/5);beep(720)}});stars.forEach(s=>{s.x-=speed;if(!s.taken&&Math.hypot(ball.x-s.x,ball.y-s.y)<ball.r+s.r+2){s.taken=true;score+=2;scoreEl.textContent=score;beep(950);for(let i=0;i<9;i++)particles.push({x:s.x,y:s.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:22})}});obstacles=obstacles.filter(o=>o.x+o.w>-5);stars=stars.filter(s=>s.x>-10&&!s.taken);particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.life--});particles=particles.filter(p=>p.life>0);if(ball.y-ball.r<0||ball.y+ball.r>H||obstacles.some(o=>circleRect(ball,{x:o.x,y:0,w:o.w,h:o.top})||circleRect(ball,{x:o.x,y:o.top+o.gap,w:o.w,h:H-o.top-o.gap})))end()}draw();requestAnimationFrame(tick)}
+c.addEventListener('pointerdown',e=>{e.preventDefault();if(!running){if(over)start();else return}jump()});
+startBtn.addEventListener('click',start);document.getElementById('play').addEventListener('click',start);
+soundBtn.addEventListener('click',()=>{sound=!sound;soundBtn.textContent=sound?'🔊 Son':'🔇 Son';if(sound)beep()});
+document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();if(!running){if(over)start();else return}jump()}});
+reset();tick();
+})();
+</script>
+</body>
+</html>
